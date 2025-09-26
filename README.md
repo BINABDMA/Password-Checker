@@ -10,6 +10,7 @@ A comprehensive JavaFX application that analyzes password strength using multipl
 - **Pattern Detection**: Identifies common sequences (1234, abcd, qwerty) and repeated characters
 - **Entropy Calculation**: Measures password randomness and unpredictability
 - **Dictionary Check**: Compares against a list of common weak passwords
+- **🚨 Data Breach Check**: Real-time verification against Have I Been Pwned database
 
 ### Scoring System
 - **Score Range**: 0-100 points
@@ -75,10 +76,11 @@ For detailed setup instructions, see [SETUP.md](SETUP.md).
 ## How It Works
 
 ### Scoring Algorithm
-- **Length (0-30 points)**: Longer passwords get more points
-- **Character Variety (0-25 points)**: More character types = higher score
-- **Entropy (0-25 points)**: Higher randomness = better score
-- **Penalties**: Common patterns (-15) and weak dictionary passwords (-20)
+- **Length (0-35 points)**: Longer passwords get more points
+- **Character Variety (0-30 points)**: More character types = higher score
+- **Entropy (0-35 points)**: Higher randomness = better score
+- **Perfect Password Bonus**: +10 points for exceptional passwords
+- **Penalties**: Common patterns (-10), weak dictionary (-15), **data breaches (-25)**
 
 ### Analysis Components
 1. **Length Analysis**: Checks minimum requirements and optimal length
@@ -86,6 +88,7 @@ For detailed setup instructions, see [SETUP.md](SETUP.md).
 3. **Pattern Recognition**: Detects keyboard patterns, sequences, repetitions
 4. **Entropy Calculation**: Measures information content and unpredictability
 5. **Dictionary Check**: Compares against 100+ common weak passwords
+6. **🚨 Data Breach Verification**: Real-time check against Have I Been Pwned database using k-anonymity
 
 ### Recommendations
 The system provides specific suggestions for improvement:
@@ -94,6 +97,7 @@ The system provides specific suggestions for improvement:
 - Avoid common patterns
 - Choose unique passwords
 - Consider 12+ characters for better security
+- **🚨 CRITICAL: Change passwords found in data breaches immediately**
 
 ## Example Outputs
 
@@ -101,6 +105,11 @@ The system provides specific suggestions for improvement:
 - **Input**: "password123"
 - **Issues**: Common dictionary word, simple pattern
 - **Recommendations**: Use unique words, add symbols, increase length
+
+### Breached Password (Score: 0/100)
+- **Input**: "123456"
+- **Issues**: Found in data breaches, too short, no variety
+- **Recommendations**: 🚨 CRITICAL: Change immediately - password found in breaches!
 
 ### Medium Password (Score: 55/100)
 - **Input**: "MyPass123"

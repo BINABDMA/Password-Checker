@@ -17,7 +17,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.CompletableFuture;
 
-public class PasswordChecker extends Application {
+public class PasswordCheckerEnhanced extends Application {
     
     private TextField passwordField;
     private Label strengthLabel;
@@ -27,6 +27,7 @@ public class PasswordChecker extends Application {
     private PasswordStrengthAnalyzer analyzer;
     private HIBPClient hibpClient;
     private Label breachStatusLabel;
+    private TextArea breachDetailsArea;
     
     // Common weak passwords dictionary
     private static final Set<String> WEAK_PASSWORDS = new HashSet<>(Arrays.asList(
@@ -52,7 +53,7 @@ public class PasswordChecker extends Application {
         analyzer = new PasswordStrengthAnalyzer();
         hibpClient = new HIBPClient();
         
-        //  main layout
+        // Create main layout
         VBox root = new VBox(20);
         root.setPadding(new Insets(20));
         root.setAlignment(Pos.CENTER);
@@ -68,7 +69,7 @@ public class PasswordChecker extends Application {
         
         passwordField = new TextField();
         passwordField.setPromptText("Type your password here...");
-        passwordField.setPrefWidth(300);
+        passwordField.setPrefWidth(450);
         passwordField.setFont(Font.font("Arial", 14));
         
         // Real-time analysis
@@ -87,7 +88,7 @@ public class PasswordChecker extends Application {
         scoreLabel.setFont(Font.font("Arial", 14));
         
         strengthBar = new ProgressBar(0);
-        strengthBar.setPrefWidth(200);
+        strengthBar.setPrefWidth(350);
         
         strengthContainer.getChildren().addAll(strengthLabel, scoreLabel, strengthBar);
         
@@ -96,28 +97,62 @@ public class PasswordChecker extends Application {
         breachStatusLabel.setFont(Font.font("Arial", 12));
         breachStatusLabel.setTextFill(Color.GRAY);
         
+        // Breach details area with collapsible slider
+        HBox breachDetailsHeader = new HBox(10);
+        breachDetailsHeader.setAlignment(Pos.CENTER_LEFT);
+        
+        Label breachDetailsTitle = new Label("Detailed Analysis:");
+        breachDetailsTitle.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+        
+        // Add toggle button for collapsible section
+        Button toggleButton = new Button("▼");
+        toggleButton.setFont(Font.font("Arial", 12));
+        
+        breachDetailsHeader.getChildren().addAll(breachDetailsTitle, toggleButton);
+        
+        breachDetailsArea = new TextArea();
+        breachDetailsArea.setPrefRowCount(6);
+        breachDetailsArea.setPrefWidth(550);
+        breachDetailsArea.setEditable(false);
+        breachDetailsArea.setWrapText(true);
+        breachDetailsArea.setFont(Font.font("Arial", 11));
+        
+        // Initially hide the details area
+        breachDetailsArea.setVisible(false);
+        breachDetailsArea.setManaged(false);
+        
+        // Toggle functionality
+        toggleButton.setOnAction(e -> {
+            boolean isVisible = breachDetailsArea.isVisible();
+            breachDetailsArea.setVisible(!isVisible);
+            breachDetailsArea.setManaged(!isVisible);
+            toggleButton.setText(isVisible ? "▶" : "▼");
+        });
+        
         // Feedback section
         Label feedbackTitle = new Label("Analysis Details:");
         feedbackTitle.setFont(Font.font("Arial", FontWeight.BOLD, 14));
         
         feedbackBox = new VBox(5);
         feedbackBox.setAlignment(Pos.CENTER_LEFT);
-        feedbackBox.setPrefWidth(400);
+        feedbackBox.setPrefWidth(550);
         
-        // Add components
+        // Add components to root
         root.getChildren().addAll(
             titleLabel,
             passwordPrompt,
             passwordField,
             strengthContainer,
             breachStatusLabel,
+            breachDetailsHeader,
+            breachDetailsArea,
             feedbackTitle,
             feedbackBox
         );
         
         // Create scene and show stage
-        Scene scene = new Scene(root, 500, 600);
-        primaryStage.setTitle("Password Strength Checker");
+        Scene scene = new Scene(root, 700, 800);
+        primaryStage.setTitle("Password Strength Checker - Enhanced");
         primaryStage.setScene(scene);
         primaryStage.setResizable(false);
         primaryStage.show();
@@ -193,14 +228,6 @@ public class PasswordChecker extends Application {
             feedbackBox.getChildren().add(dictLabel);
         }
         
-        // Breach check feedback
-        if (result.isBreached()) {
-            Label breachLabel = new Label("🚨 CRITICAL: Password found in data breaches!");
-            breachLabel.setTextFill(Color.RED);
-            breachLabel.setFont(Font.font("Arial", FontWeight.BOLD, 12));
-            feedbackBox.getChildren().add(breachLabel);
-        }
-        
         // Entropy feedback
         Label entropyLabel = new Label("✓ Entropy: " + String.format("%.1f", result.getEntropy()) + " bits");
         entropyLabel.setTextFill(result.getEntropy() >= 50 ? Color.GREEN : 
@@ -228,33 +255,101 @@ public class PasswordChecker extends Application {
         if (password == null || password.isEmpty()) {
             breachStatusLabel.setText("Enter a password to check breach status");
             breachStatusLabel.setTextFill(Color.GRAY);
+            breachDetailsArea.setText("");
             return;
         }
         
         breachStatusLabel.setText("Checking breach status...");
         breachStatusLabel.setTextFill(Color.BLUE);
+        breachDetailsArea.setText("Searching Have I Been Pwned database...");
+        
+        // Show the details area when checking
+        breachDetailsArea.setVisible(true);
+        breachDetailsArea.setManaged(true);
         
         // Check breach status asynchronously to avoid blocking UI
         CompletableFuture.supplyAsync(() -> {
             try {
-                return hibpClient.isPasswordPwned(password);
+                return hibpClient.getPasswordBreachInfo(password);
             } catch (Exception e) {
                 return null; // Indicates error
             }
-        }).thenAccept(result -> {
+        }).thenAccept(breachInfo -> {
             javafx.application.Platform.runLater(() -> {
-                if (result == null) {
-                    breachStatusLabel.setText("⚠ Unable to check breach status (offline/error)");
+                if (breachInfo == null) {
+                    breachStatusLabel.setText("Unable to check breach status (offline/error)");
                     breachStatusLabel.setTextFill(Color.ORANGE);
-                } else if (result) {
-                    breachStatusLabel.setText("🚨 PASSWORD FOUND IN DATA BREACHES!");
+                    breachDetailsArea.setText("Unable to connect to Have I Been Pwned API.\n" +
+                                            "This could be due to:\n" +
+                                            "• No internet connection\n" +
+                                            "• API service temporarily unavailable\n" +
+                                            "• Network firewall blocking the request");
+                    breachDetailsArea.setVisible(true);
+                    breachDetailsArea.setManaged(true);
+                } else if (breachInfo.isPwned()) {
+                    breachStatusLabel.setText("PASSWORD FOUND IN DATA BREACHES!");
                     breachStatusLabel.setTextFill(Color.RED);
+                    
+                    // Show detailed breach information
+                    StringBuilder details = new StringBuilder();
+                    details.append("🚨 CRITICAL SECURITY ALERT 🚨\n\n");
+                    details.append("This password has been found in data breaches!\n\n");
+                    details.append("📊 BREACH STATISTICS:\n");
+                    details.append("• Total occurrences: ").append(breachInfo.getOccurrenceCount()).append("\n");
+                    details.append("• Severity: ").append(getSeverityLevel(breachInfo.getOccurrenceCount())).append("\n\n");
+                    
+                    details.append("🔍 WHAT THIS MEANS:\n");
+                    details.append("• Your password is publicly available\n");
+                    details.append("• It's likely being used in automated attacks\n");
+                    details.append("• Anyone can find it in breach databases\n\n");
+                    
+                    details.append("⚠️ IMMEDIATE ACTION REQUIRED:\n");
+                    details.append("• Change this password immediately\n");
+                    details.append("• Use a unique, strong password\n");
+                    details.append("• Enable 2FA where possible\n");
+                    details.append("• Check if you've used this password elsewhere\n\n");
+                    
+                    details.append("💡 BREACH CONTEXT:\n");
+                    details.append("This password appears ").append(breachInfo.getOccurrenceCount());
+                    if (breachInfo.getOccurrenceCount() == 1) {
+                        details.append(" time in the Have I Been Pwned database.\n");
+                    } else {
+                        details.append(" times in the Have I Been Pwned database.\n");
+                    }
+                    details.append("The database contains over 8 billion compromised passwords\n");
+                    details.append("from thousands of data breaches worldwide.");
+                    
+                    breachDetailsArea.setText(details.toString());
+                    breachDetailsArea.setVisible(true);
+                    breachDetailsArea.setManaged(true);
                 } else {
-                    breachStatusLabel.setText("✅ Password not found in known breaches");
+                    breachStatusLabel.setText("Password not found in known breaches");
                     breachStatusLabel.setTextFill(Color.GREEN);
+                    breachDetailsArea.setText("✅ SECURITY STATUS: CLEAN\n\n" +
+                                            "This password has NOT been found in any known data breaches.\n\n" +
+                                            "🔒 WHAT THIS MEANS:\n" +
+                                            "• Your password is not publicly available\n" +
+                                            "• It hasn't been exposed in major data breaches\n" +
+                                            "• It's relatively safe from automated attacks\n\n" +
+                                            "⚠️ IMPORTANT REMINDERS:\n" +
+                                            "• This only checks known breaches\n" +
+                                            "• Use unique passwords for each account\n" +
+                                            "• Enable 2FA when available\n" +
+                                            "• Keep your passwords strong and long");
+                    breachDetailsArea.setVisible(true);
+                    breachDetailsArea.setManaged(true);
                 }
             });
         });
+    }
+    
+    private String getSeverityLevel(int count) {
+        if (count >= 1000000) return "EXTREMELY HIGH (1M+ occurrences)";
+        else if (count >= 100000) return "VERY HIGH (100K+ occurrences)";
+        else if (count >= 10000) return "HIGH (10K+ occurrences)";
+        else if (count >= 1000) return "MODERATE (1K+ occurrences)";
+        else if (count >= 100) return "LOW (100+ occurrences)";
+        else return "MINIMAL (<100 occurrences)";
     }
     
     public static void main(String[] args) {
@@ -520,19 +615,33 @@ public class PasswordChecker extends Application {
         public boolean isBreached() { return isBreached; }
     }
     
-    // Have I Been Pwned API Client
+    // Breach information class
+    public static class BreachInfo {
+        private final boolean pwned;
+        private final int occurrenceCount;
+        
+        public BreachInfo(boolean pwned, int occurrenceCount) {
+            this.pwned = pwned;
+            this.occurrenceCount = occurrenceCount;
+        }
+        
+        public boolean isPwned() { return pwned; }
+        public int getOccurrenceCount() { return occurrenceCount; }
+    }
+    
+    // Enhanced Have I Been Pwned API Client
     public static class HIBPClient {
         private static final String HIBP_API_URL = "https://api.pwnedpasswords.com/range/";
         
         /**
-         * Check if a password has been found in data breaches using k-anonymity
+         * Get detailed breach information for a password
          * @param password The password to check
-         * @return true if password was found in breaches, false otherwise
+         * @return BreachInfo object with occurrence count, or null if not found
          * @throws Exception if API call fails
          */
-        public boolean isPasswordPwned(String password) throws Exception {
+        public BreachInfo getPasswordBreachInfo(String password) throws Exception {
             if (password == null || password.isEmpty()) {
-                return false;
+                return new BreachInfo(false, 0);
             }
             
             // Generate SHA-1 hash of the password
@@ -545,8 +654,43 @@ public class PasswordChecker extends Application {
             // Query the HIBP API with the prefix
             String response = queryHIBPAPI(prefix);
             
-            // Check if our suffix is in the response
-            return response.contains(suffix);
+            // Parse the response to find our suffix and get occurrence count
+            return parseBreachResponse(response, suffix);
+        }
+        
+        /**
+         * Check if a password has been found in data breaches (simple boolean check)
+         * @param password The password to check
+         * @return true if password was found in breaches, false otherwise
+         * @throws Exception if API call fails
+         */
+        public boolean isPasswordPwned(String password) throws Exception {
+            BreachInfo info = getPasswordBreachInfo(password);
+            return info != null && info.isPwned();
+        }
+        
+        /**
+         * Parse the HIBP API response to find occurrence count
+         * @param response The API response containing hash suffixes and counts
+         * @param suffix The suffix we're looking for
+         * @return BreachInfo object with occurrence count
+         */
+        private BreachInfo parseBreachResponse(String response, String suffix) {
+            String[] lines = response.split("\n");
+            for (String line : lines) {
+                if (line.contains(":")) {
+                    String[] parts = line.split(":");
+                    if (parts.length >= 2 && parts[0].equals(suffix)) {
+                        try {
+                            int count = Integer.parseInt(parts[1].trim());
+                            return new BreachInfo(true, count);
+                        } catch (NumberFormatException e) {
+                            // Invalid count format, continue searching
+                        }
+                    }
+                }
+            }
+            return new BreachInfo(false, 0);
         }
         
         /**
